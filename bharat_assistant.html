@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bharat Voice Assistant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .pulse {
+            box-shadow: 0 0 0 0 rgba(96, 165, 250, 0.7);
+            animation: pulse-blue 2s infinite;
+        }
+        @keyframes pulse-blue {
+            0% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(96, 165, 250, 0.7);
+            }
+            70% {
+                transform: scale(1);
+                box-shadow: 0 0 0 10px rgba(96, 165, 250, 0);
+            }
+            100% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(96, 165, 250, 0);
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 flex items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-2xl mx-auto bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 space-y-6">
+        <div class="text-center">
+            <h1 class="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-orange-500 via-white-500 to-green-500">Bharat Voice Assistant</h1>
+            <p class="text-gray-500 dark:text-gray-400 mt-2">Your guide to India, Bharat, and Hindustan.</p>
+        </div>
+
+        <!-- API Key Input -->
+        <div id="apiKeySection" class="space-y-4">
+            <div>
+                <label for="elevenLabsApiKey" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Enter Your ElevenLabs API Key</label>
+                <input type="password" id="elevenLabsApiKey" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" placeholder="ElevenLabs API Key" required>
+            </div>
+            <button id="saveApiKey" class="mt-4 w-full text-white bg-blue-600 hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-blue-500 dark:hover:bg-blue-600 dark:focus:ring-blue-800">Save Key & Start</button>
+        </div>
+
+        <!-- Main Assistant UI -->
+        <div id="assistantSection" class="hidden text-center space-y-6">
+            <div id="status" class="text-lg font-medium text-gray-600 dark:text-gray-300 flex items-center justify-center space-x-2">
+                <svg id="spinner" class="animate-spin -ml-1 mr-3 h-5 w-5 text-blue-500 hidden" xmlns="http://www.w.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span id="statusText">Click the button and start speaking.</span>
+            </div>
+            
+            <button id="micButton" class="bg-blue-500 hover:bg-blue-600 text-white font-bold p-6 rounded-full transition-all duration-300 ease-in-out mx-auto flex items-center justify-center w-24 h-24">
+                <svg xmlns="http://www.w.org/2000/svg" class="h-10 w-10" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm-1 4a4 4 0 108 0V4a4 4 0 10-8 0v4zM2.586 10.414a1 1 0 011.414 0L5 11.414V12a5 5 0 0010 0v-.586l.999-1a1 1 0 111.414 1.414l-1 1A.997.997 0 0115 13v-1a6 6 0 11-12 0v1a.997.997 0 01-.414-.999l-1-1z" clip-rule="evenodd" />
+                </svg>
+            </button>
+
+            <div class="bg-gray-100 dark:bg-gray-700 p-4 rounded-lg min-h-[100px] text-left">
+                <p><strong class="text-blue-500">You said:</strong> <span id="userQuery">...</span></p>
+                <p class="mt-2"><strong class="text-green-500">Bharat AI:</strong> <span id="aiResponse">...</span></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const elevenLabsApiKeyInput = document.getElementById('elevenLabsApiKey');
+        const saveApiKeyButton = document.getElementById('saveApiKey');
+        const apiKeySection = document.getElementById('apiKeySection');
+        const assistantSection = document.getElementById('assistantSection');
+
+        const micButton = document.getElementById('micButton');
+        const statusText = document.getElementById('statusText');
+        const spinner = document.getElementById('spinner');
+        const userQueryDiv = document.getElementById('userQuery');
+        const aiResponseDiv = document.getElementById('aiResponse');
+
+        let elevenLabsApiKey = '';
+        let isRecording = false;
+        let currentAudio = null;
+        
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition;
+        
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.lang = 'en-IN';
+            recognition.interimResults = false;
+        } else {
+            statusText.textContent = "Sorry, your browser doesn't support speech recognition.";
+            micButton.disabled = true;
+        }
+
+        // Check for saved API key
+        const savedElevenKey = localStorage.getItem('elevenLabsApiKey');
+
+        if (savedElevenKey) {
+            elevenLabsApiKey = savedElevenKey;
+            apiKeySection.classList.add('hidden');
+            assistantSection.classList.remove('hidden');
+        }
+
+        saveApiKeyButton.addEventListener('click', () => {
+            const elevenKey = elevenLabsApiKeyInput.value.trim();
+
+            if (elevenKey) {
+                elevenLabsApiKey = elevenKey;
+                localStorage.setItem('elevenLabsApiKey', elevenKey);
+                apiKeySection.classList.add('hidden');
+                assistantSection.classList.remove('hidden');
+            } else {
+                alert('Please enter your ElevenLabs API key to continue.');
+            }
+        });
+
+        micButton.addEventListener('click', () => {
+            if (currentAudio && !currentAudio.paused) {
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+            }
+
+            if (!recognition) return;
+
+            if (isRecording) {
+                recognition.stop();
+            } else {
+                recognition.start();
+            }
+        });
+
+        recognition.onstart = () => {
+            isRecording = true;
+            micButton.classList.add('pulse');
+            micButton.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+            micButton.classList.add('bg-red-500', 'hover:bg-red-600');
+            statusText.textContent = "Listening...";
+            userQueryDiv.textContent = "...";
+            aiResponseDiv.textContent = "...";
+        };
+
+        recognition.onend = () => {
+            isRecording = false;
+            micButton.classList.remove('pulse');
+            micButton.classList.remove('bg-red-500', 'hover:bg-red-600');
+            micButton.classList.add('bg-blue-500', 'hover:bg-blue-600');
+            setStatus("Click the button and start speaking.");
+        };
+        
+        recognition.onerror = (event) => {
+            console.error("Speech recognition error:", event.error);
+            setStatus(`Error: ${event.error}. Please try again.`, false);
+        };
+
+        recognition.onresult = async (event) => {
+            const transcript = event.results[0][0].transcript;
+            userQueryDiv.textContent = transcript;
+            setStatus("Finding answer...", true);
+            await getAIResponse(transcript);
+        };
+
+        function setStatus(text, showSpinner = false) {
+            statusText.textContent = text;
+            if (showSpinner) {
+                spinner.classList.remove('hidden');
+            } else {
+                spinner.classList.add('hidden');
+            }
+        }
+        
+        // --- This is the new, simplified "brain" ---
+        async function getAIResponse(query) {
+            const knowledgeBase = {
+                "hello": "Namaste! How can I help you today?",
+                "what is the capital of india": "The capital of India is New Delhi.",
+                "who is the prime minister of india": "As of my last update, the Prime Minister of India is Narendra Modi.",
+                "tell me about the indian flag": "The national flag of India, known as the Tiranga, has three horizontal stripes: saffron at the top for courage, white in the middle for peace and truth, and green at the bottom for fertility and growth. In the center of the white stripe is a navy blue wheel, the Ashoka Chakra.",
+                "what is bharat": "Bharat is another official name for the Republic of India, deeply rooted in the country's history and mythology.",
+                "what is hindustan": "Hindustan is a historical name for the Indian subcontinent and is often used poetically to refer to India.",
+                "thank you": "You are most welcome! Jai Hind."
+            };
+
+            // Clean the query and look for it in our knowledge base
+            const cleanQuery = query.toLowerCase().replace(/[^\w\s]/gi, '').trim();
+            let aiText = knowledgeBase[cleanQuery];
+
+            if (!aiText) {
+                aiText = "I'm sorry, I don't have information about that topic. Please ask me another question about India.";
+            }
+
+            aiResponseDiv.textContent = aiText;
+            setStatus("Generating voice...", true);
+            await speak(aiText);
+            setStatus("Click the button and start speaking.");
+        }
+        
+        async function speak(text) {
+            if (!elevenLabsApiKey) {
+                alert('ElevenLabs API Key is not set!');
+                setStatus("API Key missing.", false);
+                return;
+            }
+
+            const voiceId = '21m00Tcm4TlvDq8ikWAM'; // A default voice
+            const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
+            
+            const headers = {
+                'Accept': 'audio/mpeg',
+                'Content-Type': 'application/json',
+                'xi-api-key': elevenLabsApiKey
+            };
+            
+            const data = {
+                text: text,
+                model_id: 'eleven_monolingual_v1',
+                voice_settings: {
+                    stability: 0.5,
+                    similarity_boost: 0.5
+                }
+            };
+            
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(data)
+                });
+                
+                if (!response.ok) {
+                    const errorBody = await response.text();
+                    console.error("ElevenLabs API Error Body:", errorBody);
+                    throw new Error(`ElevenLabs API call failed with status: ${response.status}`);
+                }
+
+                const blob = await response.blob();
+                const audioUrl = URL.createObjectURL(blob);
+                currentAudio = new Audio(audioUrl);
+                currentAudio.play();
+
+                await new Promise(resolve => {
+                    currentAudio.onended = () => {
+                        resolve();
+                    };
+                });
+
+
+            } catch (error) {
+                console.error("Error with ElevenLabs API:", error);
+                setStatus("Error generating speech. Check ElevenLabs API key.", false);
+            }
+        }
+
+    </script>
+</body>
+</html>
+
